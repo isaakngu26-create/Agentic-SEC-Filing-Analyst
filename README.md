@@ -27,6 +27,8 @@ Agentic-SEC-Filing-Analyst/
 │   └── storage.py       # Save/load analysis results
 ├── evaluation/
 │   └── rubric.py        # Memo self-evaluation rubric
+├── agent-evaluation-rubric/
+│   └── README.md        # Rubric documentation and limitations
 ├── data/                # Structured segment JSON (generated)
 ├── output/              # Research memos & evaluations (generated)
 └── requirements.txt
