@@ -1,0 +1,13 @@
+{
+  "scores": {
+    "data_grounding": 1.0,
+    "segment_coverage": 1.0,
+    "trend_analysis": 1.0,
+    "material_changes": 1.0,
+    "clarity": 1.0,
+    "source_attribution": 1.0
+  },
+  "weighted_score": 1.0,
+  "passes": true,
+  "threshold": 0.75
+}

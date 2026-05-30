@@ -1,0 +1,111 @@
+{
+  "company": "Apple Inc.",
+  "ticker": "AAPL",
+  "cik": "0000320193",
+  "filings_analyzed": [
+    {
+      "form": "10-K",
+      "filing_date": "2025-10-31",
+      "period_end": "2025-09-27"
+    },
+    {
+      "form": "10-K",
+      "filing_date": "2024-11-01",
+      "period_end": "2024-09-28"
+    }
+  ],
+  "product_segments": {
+    "2025-09-27": {
+      "Products (total)": 307003,
+      "Services": 109158,
+      "iPhone": 209586,
+      "Mac": 33708,
+      "iPad": 28023,
+      "Wearables, Home & Accessories": 35686
+    },
+    "2024-09-28": {
+      "Products (total)": 294866,
+      "Services": 96169,
+      "iPhone": 201183,
+      "Mac": 29984,
+      "iPad": 26694,
+      "Wearables, Home & Accessories": 37005
+    },
+    "2023-09-30": {
+      "Products (total)": 298085,
+      "Services": 85200,
+      "iPhone": 200583,
+      "Mac": 29357,
+      "iPad": 28300,
+      "Wearables, Home & Accessories": 39845
+    },
+    "2022-09-24": {
+      "Products (total)": 316199,
+      "Services": 78129,
+      "iPhone": 205489,
+      "Mac": 40177,
+      "iPad": 29292,
+      "Wearables, Home & Accessories": 41241
+    }
+  },
+  "geographic_segments": {
+    "2025-09-27": {
+      "Americas": 178353,
+      "Europe": 111032,
+      "Greater China": 64377,
+      "Japan": 28703,
+      "Rest of Asia Pacific": 33696
+    },
+    "2024-09-28": {
+      "Americas": 167045,
+      "Europe": 101328,
+      "Greater China": 66952,
+      "Japan": 25052,
+      "Rest of Asia Pacific": 30658
+    },
+    "2023-09-30": {
+      "Americas": 162560,
+      "Europe": 94294,
+      "Greater China": 72559,
+      "Japan": 24257,
+      "Rest of Asia Pacific": 29615
+    },
+    "2022-09-24": {
+      "Americas": 169658,
+      "Europe": 95118,
+      "Greater China": 74200,
+      "Japan": 25977,
+      "Rest of Asia Pacific": 29375
+    }
+  },
+  "geographic_operating_income": {
+    "2025-09-27": {
+      "Americas": 72480,
+      "Europe": 47739,
+      "Greater China": 26917,
+      "Japan": 13955,
+      "Rest of Asia Pacific": 14586
+    },
+    "2024-09-28": {
+      "Americas": 67656,
+      "Europe": 41790,
+      "Greater China": 27082,
+      "Japan": 12454,
+      "Rest of Asia Pacific": 13062
+    },
+    "2023-09-30": {
+      "Americas": 60508,
+      "Europe": 36098,
+      "Greater China": 30328,
+      "Japan": 11888,
+      "Rest of Asia Pacific": 12066
+    },
+    "2022-09-24": {
+      "Americas": 62683,
+      "Europe": 35233,
+      "Greater China": 31153,
+      "Japan": 12257,
+      "Rest of Asia Pacific": 11569
+    }
+  }
+}
