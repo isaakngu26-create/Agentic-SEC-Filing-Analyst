@@ -4,6 +4,8 @@ Autonomous financial research agent that retrieves SEC filings, extracts segment
 
 Built on concepts from [segment-stitcher](https://github.com/isaakngu26-create/segment-stitcher) for segment extraction and reconciliation.
 
+See **[BUILD_LOG.md](BUILD_LOG.md)** for a step-by-step project journal (problems, fixes, professor feedback, and LLM agent work on `cursor/llm-agent`).
+
 ## Features
 
 - **EDGAR integration** — resolve any US public company by ticker, CIK, or name
@@ -27,6 +29,7 @@ Agentic-SEC-Filing-Analyst/
 │   └── storage.py       # Save/load analysis results
 ├── evaluation/
 │   └── rubric.py        # Memo self-evaluation rubric
+├── BUILD_LOG.md         # Project journal (process + problems)
 ├── data/                # Structured segment JSON (generated)
 ├── output/              # Research memos & evaluations (generated)
 └── requirements.txt
