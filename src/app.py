@@ -24,30 +24,41 @@ st.set_page_config(
 )
 
 AGENT_STEPS = [
+    ("agent", "LLM agent (tool use)"),
     ("resolve", "Resolve company"),
     ("fetch", "Retrieve SEC filings"),
     ("extract", "Extract segment data"),
-    ("analyze", "Analyze trends & KPIs"),
-    ("evaluate", "Self-evaluate memo"),
+    ("tool", "EDGAR tool call"),
+    ("memo", "LLM writes memo"),
+    ("evaluate", "Evaluate LLM output"),
     ("store", "Store results"),
 ]
 
-STEP_ICONS = {
-    "running": "⏳",
-    "complete": "✅",
-    "error": "❌",
-    "pending": "○",
-}
+STEP_ICONS = {"running": "⏳", "complete": "✅", "error": "❌", "pending": "○"}
+
+
+def configure_openai_env() -> bool:
+    if os.getenv("OPENAI_API_KEY"):
+        return True
+    try:
+        key = st.secrets.get("OPENAI_API_KEY")
+        if key:
+            os.environ["OPENAI_API_KEY"] = key
+            if st.secrets.get("OPENAI_MODEL"):
+                os.environ["OPENAI_MODEL"] = st.secrets["OPENAI_MODEL"]
+            return True
+    except Exception:
+        pass
+    return False
 
 
 def init_session_state() -> None:
-    defaults = {
+    for key, val in {
         "agent_result": None,
         "agent_error": None,
         "step_log": [],
         "running": False,
-    }
-    for key, val in defaults.items():
+    }.items():
         if key not in st.session_state:
             st.session_state[key] = val
 
@@ -72,8 +83,12 @@ def on_step(step: str, status: str, detail=None) -> None:
         message = f"Score {detail.get('weighted_score', 0):.2f} / 1.0"
     elif status == "complete" and step == "resolve" and isinstance(detail, dict):
         message = f"{detail['title']} ({detail['ticker']})"
+    elif status == "complete" and step == "tool" and detail:
+        message = str(detail)
 
-    existing = [e for e in st.session_state.step_log if e["step"] != step]
+    existing = [e for e in st.session_state.step_log if not (step == "tool" and e["step"] == "tool")]
+    if step != "tool":
+        existing = [e for e in existing if e["step"] != step]
     existing.append({"step": step, "status": status, "message": message})
     st.session_state.step_log = existing
 
@@ -82,25 +97,50 @@ def render_rubric(evaluation: dict) -> None:
     scores = evaluation.get("scores", {})
     cols = st.columns(3)
     for i, criterion in enumerate(RUBRIC_CRITERIA):
-        score = scores.get(criterion["id"], 0)
         with cols[i % 3]:
             st.metric(
                 label=criterion["id"].replace("_", " ").title(),
-                value=f"{score:.0%}",
+                value=f"{scores.get(criterion['id'], 0):.0%}",
                 help=criterion["description"],
             )
 
     weighted = evaluation.get("weighted_score", 0)
-    passed = evaluation.get("passes", False)
-    if passed:
+    if evaluation.get("passes"):
         st.success(f"Rubric score **{weighted:.2f}** — passes threshold ({RUBRIC_THRESHOLD})")
     else:
         st.warning(f"Rubric score **{weighted:.2f}** — below threshold ({RUBRIC_THRESHOLD})")
 
+    algo = evaluation.get("algorithmic_checks", {})
+    if algo:
+        with st.expander("Algorithmic grounding checks"):
+            num = algo.get("numeric_grounding", {})
+            seg = algo.get("segment_mentions", {})
+            st.write(
+                f"**Numeric grounding:** {num.get('grounded_count', 0)} grounded / "
+                f"{num.get('ungrounded_count', 0)} ungrounded (score {num.get('score', 0):.0%})"
+            )
+            if num.get("ungrounded"):
+                st.json(num["ungrounded"])
+            st.write(
+                f"**Segment mentions:** {len(seg.get('mentioned', []))} / "
+                f"{seg.get('total_labels', 0)} labels (score {seg.get('score', 0):.0%})"
+            )
+
+    llm = evaluation.get("llm_judge", {})
+    if llm.get("overall_feedback"):
+        st.info(f"**LLM judge:** {llm['overall_feedback']}")
+    if llm.get("explanations"):
+        with st.expander("LLM judge explanations"):
+            st.json(llm["explanations"])
+    if llm.get("judge_error"):
+        st.error(f"LLM judge error: {llm['judge_error']}")
+
 
 def render_segments(result: dict) -> None:
     segments = result["segments"]
-    tab_product, tab_geo, tab_filings = st.tabs(["Product segments", "Geographic segments", "Filings"])
+    tab_product, tab_geo, tab_tools = st.tabs(
+        ["Product segments", "Geographic segments", "Tool calls"]
+    )
 
     with tab_product:
         rows = build_time_series_table(segments, "product_segments")
@@ -109,7 +149,7 @@ def render_segments(result: dict) -> None:
             st.dataframe(df, use_container_width=True)
             st.line_chart(df.select_dtypes(include="number"))
         else:
-            st.info("No product/category segments found in XBRL for this company.")
+            st.info("No product/category segments found.")
 
     with tab_geo:
         rows = build_time_series_table(segments, "geographic_segments")
@@ -118,36 +158,40 @@ def render_segments(result: dict) -> None:
             st.dataframe(df, use_container_width=True)
             st.line_chart(df.select_dtypes(include="number"))
         else:
-            st.info("No geographic segments found in XBRL for this company.")
+            st.info("No geographic segments found.")
 
-    with tab_filings:
-        st.dataframe(pd.DataFrame(result["filings"]), use_container_width=True)
+    with tab_tools:
+        calls = result.get("tool_calls", [])
+        if calls:
+            st.dataframe(pd.DataFrame(calls), use_container_width=True)
+        else:
+            st.info("No tool call log.")
 
 
 def main() -> None:
     init_session_state()
+    api_key_ok = configure_openai_env()
 
     st.title("SEC Filing Analyst Agent")
-    st.caption(
-        "Autonomous financial research: retrieve SEC filings, extract segments, "
-        "analyze KPIs, write a memo, and self-evaluate."
-    )
+    st.caption("LLM agent with EDGAR tools → XBRL extraction → LLM memo → grounded evaluation")
+
+    if not api_key_ok:
+        st.error("Set **OPENAI_API_KEY** in your environment or `.streamlit/secrets.toml`.")
 
     with st.sidebar:
         st.header("Agent settings")
-        query = st.text_input("Ticker, CIK, or company name", value="AAPL", placeholder="e.g. MSFT, 320193")
+        query = st.text_input("Ticker, CIK, or company name", value="AAPL")
         filing_count = st.slider("Number of filings to analyze", 1, 5, 2)
         form_type = st.selectbox("Filing type", ["10-K", "10-Q", "10-K, 10-Q"])
         form_types = tuple(x.strip() for x in form_type.split(","))
 
-        run_clicked = st.button("Run agent", type="primary", use_container_width=True)
+        run_clicked = st.button(
+            "Run agent", type="primary", use_container_width=True, disabled=not api_key_ok
+        )
 
         if query and len(query) >= 2:
-            matches = search_companies(query, limit=5)
-            if matches:
-                st.caption("Matching companies")
-                for m in matches:
-                    st.text(f"{m['ticker']} — {m['title'][:40]}")
+            for m in search_companies(query, limit=5):
+                st.caption(f"{m['ticker']} — {m['title'][:40]}")
 
         st.divider()
         st.header("Saved analyses")
@@ -175,38 +219,25 @@ def main() -> None:
                             "memo": loaded["memo"],
                             "payload": loaded["payload"],
                             "evaluation": loaded["evaluation"],
+                            "tool_calls": loaded["payload"].get("tool_calls", []),
                         }
                         st.session_state.agent_error = None
                         st.session_state.step_log = []
                         st.rerun()
-        else:
-            st.caption("No saved analyses yet.")
-
-        st.divider()
-        st.markdown(
-            "**Pipeline:** EDGAR → XBRL extraction → trend analysis → memo → rubric"
-        )
+        st.markdown("**Pipeline:** LLM + EDGAR tools → memo → LLM judge")
 
     if run_clicked:
         st.session_state.step_log = []
         st.session_state.agent_error = None
         st.session_state.agent_result = None
-        st.session_state.running = True
-
-        with st.spinner("Agent running..."):
+        with st.spinner("LLM agent running…"):
             try:
-                result = run_agent(
-                    query,
-                    filing_count=filing_count,
-                    form_types=form_types,
-                    on_step=on_step,
+                st.session_state.agent_result = run_agent(
+                    query, filing_count=filing_count, form_types=form_types, on_step=on_step
                 )
-                st.session_state.agent_result = result
             except Exception as exc:
                 st.session_state.agent_error = str(exc)
-                on_step("resolve", "error", str(exc))
-            finally:
-                st.session_state.running = False
+                on_step("agent", "error", str(exc))
 
     if st.session_state.agent_error:
         st.error(st.session_state.agent_error)
@@ -218,13 +249,12 @@ def main() -> None:
         st.info("Enter a ticker and click **Run agent** to start.")
         st.markdown(
             """
-            ### What this agent does
-            1. **Retrieve** the most recent SEC filings from EDGAR
-            2. **Extract** product and geographic segment data from inline XBRL
-            3. **Analyze** YoY trends and compute KPIs
-            4. **Write** a concise research memo
-            5. **Evaluate** output against a 6-criterion rubric
-            6. **Store** results for future retrieval
+            ### Agent workflow
+            1. **LLM** calls EDGAR tools (`lookup_company`, `get_recent_filings`, `extract_segment_data`)
+            2. **XBRL parser** returns structured segment revenue
+            3. **LLM memo writer** drafts the research memo from extracted data only
+            4. **Evaluator** verifies numeric grounding + LLM judge scores quality
+            5. **Store** results for later retrieval
             """
         )
         return
@@ -235,7 +265,6 @@ def main() -> None:
     tab_memo, tab_data, tab_eval, tab_raw = st.tabs(
         ["Research memo", "Segment data", "Evaluation", "Raw JSON"]
     )
-
     with tab_memo:
         st.markdown(result["memo"])
         st.download_button(
@@ -244,15 +273,10 @@ def main() -> None:
             file_name=f"{company['ticker'].lower()}_research_memo.md",
             mime="text/markdown",
         )
-
     with tab_data:
         render_segments(result)
-
     with tab_eval:
         render_rubric(result["evaluation"])
-        with st.expander("Rubric criteria"):
-            st.dataframe(pd.DataFrame(RUBRIC_CRITERIA), use_container_width=True)
-
     with tab_raw:
         st.json(result["payload"])
 
