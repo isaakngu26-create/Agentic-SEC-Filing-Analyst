@@ -371,7 +371,7 @@ Agentic-SEC-Filing-Analyst/
 ├── agent-evaluation-rubric/  # Rubric documentation
 ├── data/                   # Extracted segment JSON
 ├── output/                 # Memos + evaluation scores
-├── BUILD_LOG.md            # This file
+├── BUILD_LOG.md            # This file — full project journal
 └── README.md
 ```
 
@@ -389,4 +389,36 @@ PR to merge LLM work: https://github.com/isaakngu26-create/Agentic-SEC-Filing-An
 
 ---
 
-*Last updated: June 2026 (Phase 10 — LLM agent)*
+## Phase 12 — Deploying to Streamlit Cloud (June 2026)
+
+### What I did
+- Deployed the app on Streamlit Community Cloud
+- Public URL: https://agentic-sec-filing-analyst-dcn37gqqfjmuvfdjvp2jxq.streamlit.app
+
+### Problem: the live app was still the old version
+After deploying, the sidebar still showed:
+
+> Pipeline: EDGAR → XBRL extraction → trend analysis → memo → rubric
+
+That is the **old `main` branch** UI — not the LLM agent. Streamlit Cloud was pointed at `main` by default, which never received the professor's fixes.
+
+The saved AAPL analysis showing score **1.0** was also a clue: the old rubric basically auto-passed every memo.
+
+### How to fix deployment
+1. In Streamlit Cloud **Settings**, change branch to **`cursor/llm-agent`**
+2. Keep main file as **`src/app.py`**
+3. Add secrets:
+   ```toml
+   OPENAI_API_KEY = "sk-..."
+   OPENAI_MODEL = "gpt-4o-mini"
+   ```
+4. Reboot the app
+
+After that, the sidebar should say **"LLM + EDGAR tools → memo → LLM judge"** and the app requires an OpenAI key to run.
+
+### What I learned
+Deploying to the cloud ≠ deploying the latest code. Always check which **git branch** Streamlit is building from. My professor's feedback was implemented on `cursor/llm-agent`, but `main` still had the first mock-up.
+
+---
+
+*Last updated: June 2026 (Phase 12 — Streamlit deployment)*

@@ -4,6 +4,8 @@ Autonomous financial research agent that retrieves SEC filings, extracts segment
 
 Built on concepts from [segment-stitcher](https://github.com/isaakngu26-create/segment-stitcher) for segment extraction and reconciliation.
 
+See **[BUILD_LOG.md](BUILD_LOG.md)** for a step-by-step project journal (problems, fixes, and professor feedback).
+
 ## Features
 
 - **EDGAR integration** — resolve any US public company by ticker, CIK, or name
