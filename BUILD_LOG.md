@@ -129,7 +129,7 @@ Using FY2025 and FY2024 10-K filings, the agent produced a memo with real number
 - Services: **$109,158M** (+13.5% YoY)
 - Greater China: **$64,377M** (-3.8% YoY)
 
-The rubric self-evaluation scored **1.0 / 1.0** on the demo run because every number came from extracted XBRL and the memo included YoY trends, sources, and KPI bullets.
+The rubric self-evaluation scored **1.0 / 1.0** on the demo run — but see **Phase 9** below. That score was misleading because the evaluator only checked headings my own template always inserted, not whether the analysis was actually good.
 
 ### Problem: first memo draft was too Apple-specific
 Early memo code assumed labels like "iPhone" and "Mac" always exist. Other companies use completely different segment names.
@@ -219,6 +219,104 @@ Expected public URL pattern: `https://<app-name>.streamlit.app`
 
 ---
 
+## Phase 9 — Professor feedback on the first mock-up (early June 2026)
+
+### What my professor said
+After reviewing the first version, I got feedback that the EDGAR/XBRL data work was solid, but the app was **not actually agentic**:
+
+1. **No LLM anywhere** — it was a data pipeline with a template, not an agent
+2. **Replace `build_memo`** — the memo should be written by a model using extracted data
+3. **Expose EDGAR as tools** — the model should invoke filing lookups, not hardcoded Python calls
+4. **Fix the evaluator** — checking for headings my code always writes proves nothing; score the **model output**
+
+This was fair. I had built a good ETL + markdown template and called it an "agent."
+
+### What was wrong with the old rubric
+The old `evaluate_memo()` checked booleans like:
+
+- `"YoY" in memo` — my template always included YoY
+- `"## Material Changes" in memo` — my template always added that section
+- `all_numbers_from_source: True` — hardcoded to `True` without verifying each number
+
+So every memo basically auto-passed. That doesn't test anything.
+
+---
+
+## Phase 10 — Adding a real LLM agent (branch: `cursor/llm-agent`)
+
+### What I built
+Commit: `3712872` — *Add LLM agent with EDGAR tool use, memo writer, and real evaluation.*
+
+| File | Purpose |
+|------|---------|
+| `src/llm_agent.py` | OpenAI agent loop — model plans and calls EDGAR tools |
+| `src/edgar_tools.py` | Tool schemas + execution for `lookup_company`, `get_recent_filings`, `extract_segment_data` |
+| `src/memo_writer.py` | LLM writes the research memo from extracted JSON + KPI summary |
+| `src/kpi_builder.py` | Pre-computes YoY KPIs so the memo LLM has structured facts |
+| `src/llm_client.py` | OpenAI client helper (`OPENAI_API_KEY`, `OPENAI_MODEL`) |
+| `evaluation/grounding.py` | Algorithmic check — do `$` amounts in the memo match extracted data? |
+| `evaluation/llm_judge.py` | LLM-as-judge scores memo quality against source data |
+| `evaluation/criteria.py` | Rubric weights and criterion definitions |
+
+### New agent workflow
+
+```
+User query (e.g. "AAPL")
+    ↓
+LLM agent calls tools in a loop:
+    1. lookup_company
+    2. get_recent_filings
+    3. extract_segment_data
+    ↓
+KPI builder computes YoY metrics from XBRL output
+    ↓
+LLM memo writer drafts the research memo (separate call)
+    ↓
+Evaluator:
+    - 50% algorithmic numeric grounding + 50% LLM judge (data_grounding)
+    - 40% segment mention check + 60% LLM judge (segment_coverage)
+    - LLM judge for trend analysis, material changes, clarity, sources
+    ↓
+Store memo + JSON + evaluation score
+```
+
+### Setup required
+The LLM agent needs an OpenAI API key:
+
+```bash
+export OPENAI_API_KEY="your-key"
+pip install openai
+streamlit run src/app.py
+```
+
+For Streamlit Cloud, copy `.streamlit/secrets.toml.example` → `.streamlit/secrets.toml`.
+
+### Problem: circular import in evaluation
+When I split the rubric into multiple files, `rubric.py` imported `llm_judge.py` which imported `RUBRIC_CRITERIA` back from `rubric.py`. Python crashed with a circular import.
+
+**Fix:** Moved `RUBRIC_CRITERIA` and `RUBRIC_THRESHOLD` to `evaluation/criteria.py`.
+
+### Problem: professor's feedback still partially open
+Things I improved but haven't fully solved:
+
+- **Memo revision loop** — if the rubric score is below 0.75, the agent doesn't automatically rewrite the memo yet
+- **Streamlit Cloud** — still not deployed; no public URL
+- **Vector DB** — still not built
+- **PDF / segment-stitcher path** — still not integrated
+
+---
+
+## Phase 11 — Documentation branches
+
+### What I added on `cursor/add-build-log`
+- `BUILD_LOG.md` (this file)
+- `agent-evaluation-rubric/` folder explaining the rubric
+
+### Note on doc freshness
+After Phase 10, the **code** on `cursor/llm-agent` is ahead of some docs. The main `README.md` was updated for the LLM agent; this BUILD_LOG now includes Phase 9–10. The `agent-evaluation-rubric/` folder may still describe the old heading-based checks in places — update it if you're grading the LLM version.
+
+---
+
 ## Problems summary (quick reference)
 
 | Problem | Why it happened | How I fixed it |
@@ -231,19 +329,21 @@ Expected public URL pattern: `https://<app-name>.streamlit.app`
 | Python type error | Used `float \| None` on older Python | Switched to `Optional[float]` |
 | HTTPS git push failed | No credentials in agent environment | Pushed via SSH URL instead |
 | No live app link | Never deployed to Streamlit Cloud | Run locally for now; deploy later |
+| Not actually agentic | Template memo + hardcoded EDGAR calls | LLM tool loop + LLM memo writer (Phase 10) |
+| Rubric auto-passed everything | Checked headings the template always wrote | Numeric grounding + LLM judge (Phase 10) |
+| Circular import in evaluation | `rubric.py` ↔ `llm_judge.py` | Moved constants to `criteria.py` |
 
 ---
 
 ## What's next (future work)
 
-Things I originally wanted but haven't built yet:
-
-1. **PDF upload path** — integrate segment-stitcher for companies where XBRL is incomplete
-2. **Vector DB storage** — store memos for semantic search across past analyses
-3. **LLM reconciliation** — use OpenAI to match segment renames across years (like segment-stitcher does)
-4. **Streamlit Cloud deployment** — get a public URL
-5. **More filing types** — 8-K material events, proxy statements
-6. **Unit tests** — automated tests for XBRL parsing edge cases
+1. **Memo revision loop** — if rubric score < 0.75, ask the LLM to revise and re-score
+2. **PDF upload path** — integrate segment-stitcher for companies where XBRL is incomplete
+3. **Vector DB storage** — store memos for semantic search across past analyses
+4. **Streamlit Cloud deployment** — get a public URL (merge `cursor/llm-agent` first)
+5. **Merge to main** — open PR from `cursor/llm-agent` → `main`
+6. **Unit tests** — automated tests for XBRL parsing and grounding checks
+7. **Sync `agent-evaluation-rubric/` docs** — fully document LLM judge + algorithmic grounding
 
 ---
 
@@ -253,13 +353,22 @@ Things I originally wanted but haven't built yet:
 Agentic-SEC-Filing-Analyst/
 ├── src/
 │   ├── app.py              # Streamlit UI
-│   ├── agent.py            # 6-step agent orchestrator
+│   ├── agent.py            # Agent orchestrator
+│   ├── llm_agent.py        # LLM loop with EDGAR tool calling
+│   ├── memo_writer.py      # LLM research memo generation
+│   ├── edgar_tools.py      # Tool schemas + execution
+│   ├── kpi_builder.py      # YoY KPI pre-computation
+│   ├── llm_client.py       # OpenAI client helper
 │   ├── analyst.py          # CLI entry point
 │   ├── sec_client.py       # EDGAR API
 │   ├── xbrl_extractor.py   # Segment extraction
 │   └── storage.py          # Save/load results
 ├── evaluation/
-│   └── rubric.py           # Self-evaluation rubric
+│   ├── criteria.py         # Rubric weights
+│   ├── rubric.py           # Combined scorer
+│   ├── grounding.py        # Numeric + segment mention checks
+│   └── llm_judge.py        # LLM-as-judge
+├── agent-evaluation-rubric/  # Rubric documentation
 ├── data/                   # Extracted segment JSON
 ├── output/                 # Memos + evaluation scores
 ├── BUILD_LOG.md            # This file
@@ -268,4 +377,16 @@ Agentic-SEC-Filing-Analyst/
 
 ---
 
-*Last updated: May 30, 2026*
+## Git branches (as of June 2026)
+
+| Branch | What's on it |
+|--------|----------------|
+| `main` | Original pipeline (template memo, no LLM) |
+| `cursor/add-build-log` | BUILD_LOG + rubric docs |
+| `cursor/llm-agent` | LLM agent + real evaluation (**latest work**) |
+
+PR to merge LLM work: https://github.com/isaakngu26-create/Agentic-SEC-Filing-Analyst/pull/new/cursor/llm-agent
+
+---
+
+*Last updated: June 2026 (Phase 10 — LLM agent)*
