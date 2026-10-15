@@ -85,6 +85,18 @@ python src/analyst.py MSFT 3   # analyze 3 most recent 10-K filings
 - Segment extraction depends on inline XBRL disclosure quality; some companies may have limited segment detail.
 - Not investment advice.
 
+## AI short reels
+
+Separate from the filing analyst. `reels/` turns a public AI headline into an original short: script, voiceover, captions, a 1080x1920 draft, and a CapCut handoff for YouTube Shorts, TikTok, and Instagram Reels.
+
+```bash
+pip install -r requirements-reels.txt
+python -m reels topics
+python -m reels make
+```
+
+See **[reels/README.md](reels/README.md)** for CapCut and posting.
+
 ## License
 
 MIT
