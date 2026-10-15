@@ -11,3 +11,6 @@ venv/
 # Generated analysis artifacts (optional — remove to commit sample outputs)
 # data/
 # output/
+
+# Generated short-form bundles (audio, video, captions)
+output/reels/
