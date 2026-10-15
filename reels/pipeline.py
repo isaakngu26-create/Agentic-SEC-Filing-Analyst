@@ -108,7 +108,7 @@ def _speak_and_maybe_render(directory: Path, script: Script, voice: str, rate: s
     from reels.voice import synthesize
 
     audio = directory / "voiceover.mp3"
-    srt = synthesize(script.spoken, audio, voice=voice, rate=rate)
+    srt = synthesize(script.spoken_lines, audio, voice=voice, rate=rate)
     cues = parse_srt(srt)
     if not cues and have_ffmpeg():
         cues = even_captions(script.spoken_lines, media_duration(audio))

@@ -88,6 +88,10 @@ def render_clip(
 ) -> None:
     if end <= start:
         raise ValueError("clip end time must be after the start time")
+    source = source.expanduser().resolve()
+    destination = destination.resolve()
+    if not source.is_file():
+        raise RuntimeError(f"Video not found: {source}")
     filters = fit_filter(fit)
     if ass_path is not None:
         filters += ",subtitles=captions.ass"

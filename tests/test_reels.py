@@ -4,7 +4,7 @@ from reels.captions import Cue, ass_escape, build_ass, even_captions, parse_srt,
 from reels.publish import instagram_caption, tiktok_source_info, youtube_metadata
 from reels.render import fit_filter
 from reels.script import classify, template_script
-from reels.topics import Topic, dedupe, is_ai_topic, mix_sources, parse_google_news_xml, parse_hn_hits
+from reels.topics import Topic, dedupe, is_ai_topic, mix_sources, parse_google_news_xml, parse_hn_hits, rank_topics
 
 
 GOOGLE = b"""<?xml version="1.0" encoding="UTF-8"?>
@@ -51,6 +51,26 @@ class TopicTests(unittest.TestCase):
         ]
         mixed = mix_sources(topics, limit=3)
         self.assertEqual([item.origin for item in mixed], ["google-news", "hacker-news", "google-news"])
+
+    def test_engagement_outranks_a_weak_headline(self):
+        topics = [
+            Topic(
+                "Artificial intelligence-enabled clinical phenotyping of human brown fat",
+                "https://example.com/a",
+                "Nature",
+                "google-news",
+                70,
+            ),
+            Topic(
+                "Containment failures are to blame for AI hacking reports",
+                "https://example.com/b",
+                "csoonline.com",
+                "hacker-news",
+                800,
+            ),
+        ]
+        ranked = rank_topics(topics, limit=2)
+        self.assertEqual(ranked[0].origin, "hacker-news")
 
 
 class ScriptTests(unittest.TestCase):
@@ -100,6 +120,12 @@ class CaptionTests(unittest.TestCase):
         )
         split = readable_captions(parsed, max_words=4)
         self.assertGreater(len(split), 1)
+
+    def test_sentence_boundary_is_kept(self):
+        cues = [Cue(0, 10, "The useful question is simple. Does this change a tool you already use?")]
+        split = readable_captions(cues, max_words=8)
+        self.assertTrue(split[0].text.endswith("simple."))
+        self.assertTrue(split[1].text.startswith("Does"))
 
     def test_even_captions_and_ass_escape(self):
         cues = even_captions(["Hello there.", "Second line."], 4)

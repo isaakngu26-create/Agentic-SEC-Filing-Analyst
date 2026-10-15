@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
 
@@ -94,16 +95,35 @@ def _group_words(cues: list[Cue], max_words: int) -> list[Cue]:
 def _split_long(cues: list[Cue], max_words: int) -> list[Cue]:
     pieces: list[Cue] = []
     for cue in cues:
-        words = cue.text.split()
-        if len(words) <= max_words:
-            pieces.append(Cue(cue.start, cue.end, cue.text.strip()))
-            continue
+        pieces.extend(_explode(cue, max_words))
+    return pieces
+
+
+def _explode(cue: Cue, max_words: int) -> list[Cue]:
+    sentences = [part.strip() for part in re.split(r"(?<=[.!?])\s+", cue.text.strip()) if part.strip()]
+    if len(sentences) > 1:
+        weights = [max(len(sentence.split()), 1) for sentence in sentences]
+        total = sum(weights)
         span = max(cue.end - cue.start, 0.2)
-        for offset in range(0, len(words), max_words):
-            chunk = words[offset : offset + max_words]
-            start = cue.start + span * (offset / len(words))
-            end = cue.start + span * ((offset + len(chunk)) / len(words))
-            pieces.append(Cue(start, max(end, start + 0.2), " ".join(chunk)))
+        cursor = cue.start
+        pieces: list[Cue] = []
+        for sentence, weight in zip(sentences, weights):
+            end = cursor + span * (weight / total)
+            pieces.extend(_explode(Cue(cursor, end, sentence), max_words))
+            cursor = end
+        return pieces
+    words = cue.text.split()
+    if len(words) <= max_words:
+        return [Cue(cue.start, cue.end, cue.text.strip())]
+    chunk_count = math.ceil(len(words) / max_words)
+    size = math.ceil(len(words) / chunk_count)
+    span = max(cue.end - cue.start, 0.2)
+    pieces = []
+    for offset in range(0, len(words), size):
+        chunk = words[offset : offset + size]
+        start = cue.start + span * (offset / len(words))
+        end = cue.start + span * ((offset + len(chunk)) / len(words))
+        pieces.append(Cue(start, max(end, start + 0.2), " ".join(chunk)))
     return pieces
 
 

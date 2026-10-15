@@ -75,6 +75,10 @@ def _pick(options: tuple[str, ...], key: str) -> str:
     return options[zlib.crc32(key.encode()) % len(options)]
 
 
+def _spoken_parts(text: str) -> list[str]:
+    return [part.strip() for part in re.split(r"(?<=[.!?])\s+", text.strip()) if part.strip()]
+
+
 def _ends(sentence: str) -> str:
     sentence = sentence.strip()
     if not sentence:
@@ -99,10 +103,10 @@ def template_script(topic: Topic) -> Script:
     blurb = first_sentence(topic.summary)
     if blurb and blurb.casefold() not in headline.casefold() and headline.casefold() not in blurb.casefold():
         lines.append(_ends(blurb))
-    lines.append(_WHY[category])
+    lines.extend(_ends(sentence) for sentence in _spoken_parts(_WHY[category]))
     if topic.source:
         lines.append(f"The write-up is from {topic.source}.")
-    lines.append("The link is in the caption. Follow for the next AI short.")
+    lines.extend(_spoken_parts("The link is in the caption. Follow for the next AI short."))
     extra = {
         "launch": "AITools",
         "research": "AIResearch",

@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 import json
 import re
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -17,11 +18,15 @@ GOOGLE_NEWS = (
     + urllib.parse.quote("artificial intelligence OR OpenAI OR LLM OR Anthropic when:2d")
     + "&hl=en-US&gl=US&ceid=US:en"
 )
-HN_SEARCH = (
-    "https://hn.algolia.com/api/v1/search_by_date?query="
-    + urllib.parse.quote('LLM OR OpenAI OR Anthropic OR "machine learning" OR Claude OR Gemini')
-    + "&tags=story&hitsPerPage=25&numericFilters=points%3E25"
-)
+
+
+def hacker_news_url() -> str:
+    since = int(time.time()) - 3 * 24 * 3600
+    filters = urllib.parse.quote(f"created_at_i>{since},points>40")
+    return (
+        "https://hn.algolia.com/api/v1/search?query=AI&tags=story&hitsPerPage=25&numericFilters="
+        + filters
+    )
 REDDIT_URLS = (
     "https://www.reddit.com/r/MachineLearning/hot.json?limit=15",
     "https://www.reddit.com/r/artificial/hot.json?limit=15",
@@ -201,6 +206,25 @@ def dedupe(topics: list[Topic]) -> list[Topic]:
     return unique
 
 
+def trend_score(topic: Topic) -> float:
+    text = f"{topic.title} {topic.summary}".casefold()
+    score = float(topic.score)
+    if topic.origin == "google-news":
+        # RSS order is not engagement, so keep it below stories with real points.
+        score *= 0.35
+    if any(term in text for term in ("openai", "anthropic", "chatgpt", "gemini", "claude", "nvidia", "deepseek", "llm", "gpt")):
+        score += 25
+    if any(term in text for term in ("phenotyp", "curriculum", "city business", "discusses", "lecture", "students")):
+        score -= 35
+    return score
+
+
+def rank_topics(topics: list[Topic], limit: int) -> list[Topic]:
+    ranked = dedupe(topics)
+    ranked.sort(key=trend_score, reverse=True)
+    return ranked[:limit]
+
+
 def mix_sources(topics: list[Topic], limit: int) -> list[Topic]:
     grouped: dict[str, list[Topic]] = {}
     for topic in topics:
@@ -226,7 +250,7 @@ def collect_topics(limit: int = 8) -> tuple[list[Topic], list[str]]:
     if google:
         found.extend(parse_google_news_xml(google))
 
-    hn = _safe_fetch("Hacker News", HN_SEARCH, notes)
+    hn = _safe_fetch("Hacker News", hacker_news_url(), notes)
     if hn:
         try:
             payload = json.loads(hn.decode("utf-8"))
@@ -249,4 +273,4 @@ def collect_topics(limit: int = 8) -> tuple[list[Topic], list[str]]:
         raise RuntimeError("No trending AI topics came back. Check your network and run again.")
     if not ai_topics:
         notes.append("Keyword filter kept nothing, so the raw headlines were used.")
-    return mix_sources(chosen, limit), notes
+    return rank_topics(chosen, limit), notes
